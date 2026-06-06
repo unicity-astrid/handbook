@@ -1,0 +1,19 @@
+[book]
+title = "The Astrid Contributor Handbook"
+authors = ["Joshua J. Bouw", "Unicity Labs"]
+description = "How to work on Astrid: the polyrepo, the kernel-is-dumb law, the RFC trigger, contribution tiers, and the release process."
+language = "en"
+src = "src"
+
+[output.html]
+default-theme = "ayu"
+preferred-dark-theme = "ayu"
+git-repository-url = "https://github.com/unicity-astrid/handbook"
+edit-url-template = "https://github.com/unicity-astrid/handbook/edit/main/{path}"
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.search]
+enable = true
