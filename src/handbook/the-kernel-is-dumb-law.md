@@ -8,7 +8,7 @@ The module-level doc in `core/crates/astrid-kernel/src/lib.rs` states it plainly
 //! The Kernel is a pure, decentralized WASM runner. It contains no business
 //! logic, no cognitive loops, and no network servers. Its sole responsibility
 //! is to instantiate `astrid_events::EventBus`, load `.capsule` files into
-//! the Extism sandbox, and route IPC bytes between them.
+//! the Wasmtime sandbox, and route IPC bytes between them.
 ```
 
 This page explains what the law means, why it exists, what it permits, what it forbids, and how to tell the difference in practice.
