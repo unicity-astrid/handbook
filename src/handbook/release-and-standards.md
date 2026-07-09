@@ -74,7 +74,7 @@ if !store_path.exists() {
 
 The UUID-suffix is required because the gateway processes admin requests concurrently (since the bus-direct refactor), and sibling tokio tasks in the same daemon process share a PID. A UUID is the only safe disambiguator.
 
-The runtime resolves a capsule's WASM via `resolve_content_addressed_wasm` in `crates/astrid-capsule/src/engine/wasm/mod.rs` (line 90): it reads `meta.json` in the per-capsule directory to find `wasm_hash`, then constructs the path `$ASTRID_HOME/bin/<hash>.wasm`. WIT files follow the same scheme under `~/.astrid/wit/`. The `AstridHome` directory layout is defined in `crates/astrid-core/src/dirs.rs`; `bin_dir()` returns `{root}/bin`, `wit_dir()` returns `{root}/wit`.
+The runtime resolves a capsule's WASM via `resolve_content_addressed_wasm` in `crates/astrid-capsule/src/engine/wasm/mod.rs` (line 90): it reads `meta.json` in the per-capsule directory to find `wasm_hash`, then constructs the path `$ASTRID_HOME/bin/<hash>.wasm`. WIT files follow the same scheme under `~/.astrid/wit/store/`; the top of `~/.astrid/wit/` holds the daemon's canonical named copies (notably `astrid-contracts.wit`), kept apart from the hash-named store so `astrid capsule wit gc` can sweep the store without touching them. The `AstridHome` directory layout is defined in `crates/astrid-core/src/dirs.rs`; `bin_dir()` returns `{root}/bin`, `wit_dir()` returns `{root}/wit`.
 
 ### GitHub Release
 
@@ -83,10 +83,26 @@ After all four build jobs complete, the `github-release` job:
 1. Downloads all `binary-*` artifacts.
 2. Extracts the changelog section for the version from `CHANGELOG.md` using `awk` and embeds it in the release body.
 3. Computes SHA-256 checksums with `sha256sum *.tar.gz > SHA256SUMS.txt`.
-4. Creates the GitHub release with `softprops/action-gh-release`, attaching all four archives and `SHA256SUMS.txt`.
-5. Dispatches a `release` event to the `homebrew-tap` repository so the Homebrew formula can be updated automatically.
+4. Signs every archive and `SHA256SUMS.txt` with keyless sigstore (`cosign sign-blob --bundle`), producing a `.sigstore.json` bundle per asset. The certificate identity is `release.yml` at the version tag.
+5. Creates the GitHub release with `softprops/action-gh-release`, attaching all four archives, `SHA256SUMS.txt`, and the sigstore bundles.
+6. Dispatches a `release` event to the `homebrew-tap` repository so the Homebrew formula can be updated automatically.
 
 The release body includes install instructions for both `cargo install astrid` (requires Rust 1.95 or later) and the pre-built binary path.
+
+### crates.io Publishing
+
+The `astrid` package (`crates/astrid-cli`) carries all four binaries as bin targets, so `cargo install astrid` yields the same toolchain as a release tarball. Cargo requires a published crate's entire dependency tree on the registry, and the closure of `astrid` is 24 of the 28 workspace crates. Publishing "just the CLI" is therefore not possible; a release publishes the whole closure:
+
+```bash
+# After the tag, from the workspace root:
+cargo publish --workspace
+```
+
+Modern cargo resolves the inter-crate publish order automatically and uploads bottom-up. The command is resumable: if it dies partway (network, registry rate limit), re-running skips already-published crates and continues.
+
+Four crates are excluded with `publish = false` and must stay that way: `astrid-hooks`, `astrid-prelude`, `astrid-integration-tests`, and `astrid-test`. They are not in the CLI's closure and are not a public surface.
+
+The internal crates that do reach crates.io exist only to satisfy cargo's published-closure rule. They are not a supported library API: no stability guarantees, and their versions move in lockstep with the `astrid` CLI release.
 
 ---
 
