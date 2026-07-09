@@ -1,7 +1,7 @@
 [book]
-title = "The Astrid Contributor Handbook"
+title = "The Unicity Astrid OS Contributor Handbook"
 authors = ["Joshua J. Bouw", "Unicity Labs"]
-description = "How to work on Astrid: the polyrepo, the kernel-is-dumb law, the RFC trigger, contribution tiers, and the release process."
+description = "How to work on Unicity Astrid OS: the polyrepo, the kernel-is-dumb law, the RFC trigger, contribution tiers, and the release process."
 language = "en"
 src = "src"
 
