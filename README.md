@@ -1,6 +1,6 @@
-# The Unicity Astrid OS Contributor Handbook
+# The Astrid Contributor Handbook
 
-How to work on Unicity Astrid OS: the polyrepo, the kernel-is-dumb law, the RFC trigger, contribution tiers, and the release process.
+How to work on Astrid: the polyrepo, the kernel-is-dumb law, the RFC trigger, contribution tiers, and the release process.
 
 Built with [mdBook](https://github.com/rust-lang/mdBook).
 
