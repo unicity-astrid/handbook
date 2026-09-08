@@ -1,7 +1,7 @@
 # Working on Astrid: The Polyrepo and Git Workflow
 
 Astrid is not a monorepo. The kernel, the SDK, the RFCs, and every capsule each live in their own
-GitHub repository under the `unicity-astrid` organization. Your local checkout layers all of these
+GitHub repository under the `astrid-runtime` organization. Your local checkout layers all of these
 as independent git repos under a single parent directory. Understanding that layout is the
 prerequisite for every workflow decision that follows.
 
@@ -9,43 +9,33 @@ prerequisite for every workflow decision that follows.
 
 Your working directory contains these top-level components, each a standalone git repo:
 
-| Local path | GitHub repo | Current version | Purpose |
-|---|---|---|---|
-| `core/` | `unicity-astrid/astrid` | 0.7.0 | Kernel, daemon, CLI, all `crates/astrid-*` |
-| `sdk-rust/` | `unicity-astrid/sdk-rust` | 0.7.0 | `astrid-sdk`, `astrid-sdk-macros`, `astrid-sys` |
-| `astrid-rfcs/` | `unicity-astrid/rfcs` | n/a | Design proposals for the kernel-to-user-space contract |
-| `capsules/astrid-capsule-agents/` | `unicity-astrid/capsule-agents` | - | Agent orchestration capsule |
-| `capsules/astrid-capsule-cli/` | `unicity-astrid/capsule-cli` | 0.1.1 | Unix socket bridge for the CLI frontend |
-| `capsules/astrid-capsule-fs/` | `unicity-astrid/capsule-fs` | - | Filesystem host-function capsule |
-| `capsules/astrid-capsule-http/` | `unicity-astrid/capsule-http` | - | Outbound HTTP capsule |
-| `capsules/astrid-capsule-identity/` | `unicity-astrid/capsule-identity` | - | Authentication and principal management |
-| `capsules/astrid-capsule-memory/` | `unicity-astrid/capsule-memory` | - | Persistent agent memory |
-| `capsules/astrid-capsule-openai/` | `unicity-astrid/capsule-openai` | - | OpenAI provider capsule |
-| `capsules/astrid-capsule-openai-compat/` | `unicity-astrid/capsule-openai-compat` | - | OpenAI-compatible inference routing |
-| `capsules/astrid-capsule-prompt-builder/` | `unicity-astrid/capsule-prompt-builder` | - | Prompt assembly |
-| `capsules/astrid-capsule-react/` | `unicity-astrid/capsule-react` | - | Reactive event handling |
-| `capsules/astrid-capsule-registry/` | `unicity-astrid/capsule-registry` | - | Model registry and active-model selection |
-| `capsules/astrid-capsule-router/` | `unicity-astrid/capsule-router` | - | IPC topic routing |
-| `capsules/astrid-capsule-session/` | `unicity-astrid/capsule-session` | - | Session lifecycle |
-| `capsules/astrid-capsule-shell/` | `unicity-astrid/capsule-shell` | - | Shell command execution (`host_process` carve-out) |
-| `capsules/astrid-capsule-skills/` | `unicity-astrid/capsule-skills` | - | Skill loader |
-| `capsules/astrid-capsule-system/` | `unicity-astrid/capsule-system` | - | System-level capsule |
-| `capsules/astrid-capsule-users/` | `unicity-astrid/capsule-users` | - | User management capsule |
-| `capsules/astrid-capsule-context-engine/` | `unicity-astrid/capsule-context-engine` | - | Context window management |
-| `capsules/astrid-capsule-hook-bridge/` | `unicity-astrid/capsule-hook-bridge` | - | Hook-bridge glue |
+| Local path | GitHub repo | Purpose |
+|---|---|---|
+| `core/` | `astrid-runtime/astrid` | Runtime, kernel, daemon and CLI |
+| `sdk-rust/` | `astrid-runtime/sdk-rust` | Rust capsule-author SDK |
+| `sdk-js/` | `astrid-runtime/sdk-js` | JavaScript SDK |
+| `wit/` | `astrid-runtime/wit` | Canonical interfaces |
+| `astrid-rfcs/` | `astrid-runtime/rfcs` | Contract proposals |
+| `astrid-book/` | `astrid-runtime/book` | Runtime and architecture reference |
+| `astrid-handbook/` | `astrid-runtime/handbook` | Contributor workflow |
+| `capsules/astrid-capsule-<name>/` | `astrid-runtime/capsule-<name>` | Independently versioned capsules, where present |
+
+This is a workspace convention, not a required distribution membership list.
+Inspect each repository's remote and manifest. Runtime, SDK, and capsule
+versions need not match; do not use an old table as a dependency pin.
 
 ### Naming convention
 
 Every capsule directory is named `astrid-capsule-<name>`. The GitHub repo drops the `astrid-capsule-`
 prefix: `capsule-<name>`. The git remote inside each capsule directory reflects the shortened form.
-When you need to push, the HTTPS URL is `https://github.com/unicity-astrid/capsule-<name>.git`.
+When you need to push, the HTTPS URL is `https://github.com/astrid-runtime/capsule-<name>.git`.
 
 You can verify any remote with `git remote get-url origin` from inside the capsule directory:
 
 ```bash
 cd capsules/astrid-capsule-skills
 git remote get-url origin
-# https://github.com/unicity-astrid/capsule-skills.git
+# https://github.com/astrid-runtime/capsule-skills.git
 ```
 
 ## Each Component Is Its Own Git Repo
@@ -64,11 +54,9 @@ cd core
 git log --oneline -5
 ```
 
-The kernel workspace (`core/Cargo.toml`) lists 27 member crates from `crates/astrid-approval`
-through `crates/astrid-workspace`. The SDK workspace (`sdk-rust/Cargo.toml`) lists three:
-`astrid-sdk`, `astrid-sdk-macros`, and `astrid-sys`. These are all in the same single Git repo per
-workspace. The capsules are each their own Git repo with their own `Cargo.toml`, `Cargo.lock`, and
-`rust-toolchain.toml`.
+The kernel and SDK each have a Cargo workspace defined by their own root
+`Cargo.toml`. Inspect those manifests for current membership instead of relying
+on a historical crate count. Capsules are independently versioned repositories.
 
 ## Branching from `origin/main`
 
@@ -140,19 +128,19 @@ Push via HTTPS instead. The mapping is straightforward:
 ```bash
 # Kernel
 cd core
-git push -u https://github.com/unicity-astrid/astrid.git <branch>
+git push -u https://github.com/astrid-runtime/astrid.git <branch>
 
 # SDK
 cd sdk-rust
-git push -u https://github.com/unicity-astrid/sdk-rust.git <branch>
+git push -u https://github.com/astrid-runtime/sdk-rust.git <branch>
 
 # RFCs
 cd astrid-rfcs
-git push -u https://github.com/unicity-astrid/rfcs.git <branch>
+git push -u https://github.com/astrid-runtime/rfcs.git <branch>
 
 # A capsule (substitute the real short name)
 cd capsules/astrid-capsule-cli
-git push -u https://github.com/unicity-astrid/capsule-cli.git <branch>
+git push -u https://github.com/astrid-runtime/capsule-cli.git <branch>
 ```
 
 The repo name on GitHub always drops the `astrid-capsule-` prefix for capsules. The kernel and SDK
@@ -190,7 +178,7 @@ still applies in practice, but the CI enforcement lives only in the kernel repo.
 ## Filling In the PR Template
 
 The `pr-checks.yml` workflow validates the PR body on every open, edit, reopen, and synchronize
-event. All four sections must contain real content beyond the template placeholder comments:
+event. Use the current repository template, including Verification and AI / Tool Assistance. For example:
 
 ```markdown
 ## Linked Issue
@@ -202,20 +190,25 @@ Brief description of what the PR does and why.
 ## Changes
 - Bullet list of notable changes.
 
-## Test Plan
+## Verification
 ### Automated
 - [ ] `cargo test --workspace` passes
 - [ ] No new clippy warnings
+
+## AI / Tool Assistance
+None, or the required Assisted-by disclosure and validation description.
 ```
 
 A missing or blank section causes the `template` job to fail and blocks merge.
 
-In addition, the `file-size` job rejects any source file that your PR pushes over 1000 lines if it
-was under 1000 lines on `main`. A maintainer can override with the `large-file-ok` label.
+The file-size gate distinguishes source (1000 lines) from recognized tests (2000).
+Check its current classification and base-comparison rules; split coherent modules
+rather than assuming a waiver.
 
 ## Version Bumps Are Separate PRs
 
-A `chore: release X.Y.Z` commit is always its own pull request. Never include a version bump in a
+A version update belongs in its own release pull request, for example
+`feat(release): prepare 2026.9.0`. Never include a version bump in a
 feature or fix PR. This applies to the kernel, SDK, and every capsule equally.
 
 ## Pull Request Creation Is User-Initiated
@@ -259,7 +252,7 @@ The Rust edition across the kernel and SDK is 2024. The kernel MSRV is 1.95; the
 
 ## The RFC Repo
 
-`astrid-rfcs/` (`unicity-astrid/rfcs`) holds design proposals for the kernel-to-user-space contract.
+`astrid-rfcs/` (`astrid-runtime/rfcs`) holds design proposals for the kernel-to-user-space contract.
 You need an RFC for:
 
 - Adding, removing, or changing a host function in `astrid-sys`
@@ -285,7 +278,7 @@ cp 0000-template.md text/0000-my-feature.md
 # fill in the RFC
 git add text/0000-my-feature.md
 git commit -m "rfc: my-feature"
-git push -u https://github.com/unicity-astrid/rfcs.git rfc/my-feature
+git push -u https://github.com/astrid-runtime/rfcs.git rfc/my-feature
 ```
 
 Do not assign an RFC number. A maintainer assigns the next sequential number and renames the file
@@ -307,7 +300,7 @@ PR without a corresponding RFC will be rejected.
 4. Commits are GPG-signed. Verify with `git log --format="%G?" -1`.
 5. `cargo test --workspace` passes (or `cargo build` for capsules, which lack a workspace test runner).
 6. No new Clippy warnings.
-7. `CHANGELOG.md` updated under `[Unreleased]`.
+7. Required `changes/{issue}.{kind}.md` fragment added; release PRs roll fragments.
 8. Core PR: a GitHub issue exists and the PR body contains `Closes #N`.
 9. Version bump (if any) is on its own separate PR.
 10. Push via HTTPS to the correct GitHub repo.

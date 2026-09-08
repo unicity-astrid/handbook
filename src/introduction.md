@@ -3,12 +3,12 @@
 If the agent lives inside the labyrinth, you are one of the people who build its walls. Build
 them wrong and the whole promise leaks. This handbook is how the walls get built and kept.
 
-This handbook is for people working on Unicity Astrid OS, not with it. If you are
-building a capsule, the front-door documentation and The Unicity Astrid OS Book are
+This handbook is for people working on Astrid, not with it. If you are
+building a capsule, the front-door documentation and The Astrid Book are
 your references. If you are changing the kernel, the SDK, a contract surface, or a
 reference capsule, read this first.
 
-Unicity Astrid OS is a polyrepo. The kernel, the SDK, the RFCs, and each capsule are their own git
+Astrid is a polyrepo. The kernel, the SDK, the RFCs, and each capsule are their own git
 repositories under the `unicity-astrid` organization. Working on it means knowing which repo
 owns what, what may never cross the kernel boundary, when a change needs an RFC, and how
 releases are cut. This handbook is the operational law for that work.

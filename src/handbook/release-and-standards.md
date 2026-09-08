@@ -1,139 +1,104 @@
 # Release Process and Coding Standards
 
-This page documents the release workflow for the `core` repository (`unicity-astrid/astrid`), the lint and formatting rules every crate must satisfy, and the security disclosure process. Read it before opening your first PR against a kernel or security-critical crate.
+This page covers the hosted 2026.9 release process in
+[`astrid-runtime/astrid`](https://github.com/astrid-runtime/astrid).
+It was checked against runtime commit
+[`28034075`](https://github.com/astrid-runtime/astrid/tree/280340757cb67478937184e352c286bb4384a6e5).
+For later releases, inspect the workflows at the selected source commit.
 
----
+## Version and changelog policy
 
-## Version Bump Policy
+Keep version changes in a dedicated release PR, not a feature or fix PR.
+Use a conventional public title such as `feat(release): prepare 2026.9.0`.
+The release PR updates the workspace version, lockfile and relevant release
+metadata together; it is not necessarily a two-file change.
 
-Version bumps are **always a separate PR**. Never bundle a version bump with a feature or fix PR. The commit type is `chore: release X.Y.Z` and it touches only `Cargo.toml` workspace version and the `CHANGELOG.md` heading change from `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD`. Reviewers must be able to diff a feature PR and see only the intended change.
+Astrid uses the calendar-based policy in
+[release/VERSIONING.md](https://github.com/astrid-runtime/astrid/blob/main/release/VERSIONING.md).
+The September 2026 release is `2026.9.0`, tagged `v2026.9.0`.
+SDK and capsule versions are independent; do not infer them from the runtime.
 
-All workspace members inherit the version from the root `Cargo.toml`:
+Feature and fix PRs add `changes/{issue}.{kind}.md` fragments.
+The supported kinds are `added`, `changed`, `deprecated`, `removed`,
+`fixed`, and `security`. Documentation/CI-only exceptions follow the
+repository's changelog policy. Do not add a nonstandard `Breaking` heading:
+describe compatibility changes under the appropriate Keep a Changelog category.
 
-```toml
-# core/Cargo.toml
-[workspace.package]
-version = "0.7.0"
-```
+The release PR uses `scripts/changelog.py roll` (see its `--help`) to
+accumulate fragments. Review the result against the **previous public release**:
+combine intermediate fixes to features that never shipped, preserve distinct
+user-visible changes, and keep migration or compatibility warnings. The
+changelog is an itemized account of shipped differences, not a transcript of
+every review iteration. Preserve version headings, dates, and comparison links.
 
-Every crate in `[workspace.members]` carries `version.workspace = true`. Bumping the root version bumps every crate atomically. Do not set a crate-local version unless you have an explicit reason.
+## Release execution
 
----
+Tagging and publication require release authorization; a green PR alone is not
+authorization. Re-verify the selected landed commit, version, changelog, and
+required checks, then create a signed annotated tag for that exact commit.
+Do not tag a local branch tip merely because its version is correct.
 
-## Changelog Discipline
+The executable procedure is
+[release.yml](https://github.com/astrid-runtime/astrid/blob/main/.github/workflows/release.yml)
+and the [release-channel guide](https://github.com/astrid-runtime/astrid/blob/main/docs/release-channels.md).
+The 2026.9 publication matrix contains six Unix targets:
 
-The project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) with Semantic Versioning. Every PR that touches Rust source or `Cargo.toml` must include a `CHANGELOG.md` entry under `[Unreleased]`. The CI changelog enforcer (`dangoslen/changelog-enforcer`) rejects PRs that omit this step (`.github/workflows/changelog.yml`). PRs carrying the `skip-changelog` label are exempt, reserved for pure documentation and CI changes.
+| Platform | Targets |
+|---|---|
+| macOS | `aarch64-apple-darwin`, `x86_64-apple-darwin` |
+| Linux GNU | `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-gnu` |
+| Linux MUSL | `aarch64-unknown-linux-musl`, `x86_64-unknown-linux-musl` |
 
-Section headings are `### Added`, `### Changed`, `### Fixed`, `### Removed`, `### Deprecated`, `### Security`, and `### Breaking`. Write entries in past tense, bold the feature name, and close with `Closes #N` where N is the linked issue. Keep entries dense but complete: reviewers use them to understand blast radius.
+Windows CI does not imply a Windows release archive. The package manifest and
+archive validators, not a manually maintained file count, define archive
+membership. Packages include the runtime tools and target-appropriate native
+filesystem support.
 
----
+Darwin packaging signs the filesystem companion and app and notarizes/staples
+the app. The supervised FSKit gate binds an operator's local mount/IO evidence
+to the same-run archive digest, source, run and attempt. It is **operator-attested
+local execution**, not a claim that a hosted runner performed the mount.
+Follow the checked-in certification scripts and protected approval procedure;
+do not approve it merely because signing succeeded. Dedicated native-runner
+certification remains a separate execution vehicle.
 
-## Release Workflow
+The publication path verifies its manifests and artifacts and signs release
+metadata/assets. A local rehearsal proves behavior for the rehearsed bytes and
+trust identity; future production digests and signing success are established
+only by actual release execution. Failed required verification stops the
+affected publication or downstream promotion.
 
-Releases are triggered by pushing a `v*` tag. The `.github/workflows/release.yml` pipeline runs automatically.
+Do not bypass channel gates with `cargo publish --workspace`. Inspect the
+authorized promotion workflow and `scripts/publish_crates_io.sh` for the
+publishable dependency closure and order. A Cargo installation is not equivalent
+to the signed native-app archive.
 
-### Tagging and Triggering
+## Runtime layout is not release packaging
 
-```bash
-# After the version-bump PR is merged to main:
-git tag v0.8.0
-git push origin v0.8.0
-```
+Immutable executable files live outside the mutable runtime root. Current
+durable state is held in `astrid.volume`; working projections exist while the
+runtime runs and are retired on clean stop. Older descriptions of
+`~/.astrid/bin/<hash>.wasm` and `meta.json` are not the current durable
+load authority. See the
+[Book's 2026.9 operating guide](https://github.com/astrid-runtime/book/blob/main/src/operating-2026-9.md).
 
-The pipeline fires on any tag matching `v[0-9]+.*`.
+## CI and pre-submission checks
 
-### Build Matrix
+Use the selected branch's `.github/workflows/ci.yml` and PR checks as the
+authority for triggered jobs and supported targets; job counts change.
 
-The release workflow builds four targets in parallel (`fail-fast: false`):
-
-| Target | OS |
-|--------|-----|
-| `x86_64-apple-darwin` | `macos-latest` |
-| `aarch64-apple-darwin` | `macos-latest` |
-| `x86_64-unknown-linux-gnu` | `ubuntu-latest` |
-| `aarch64-unknown-linux-gnu` | `ubuntu-latest` |
-
-The Linux ARM target requires the `gcc-aarch64-linux-gnu` cross-compiler, installed by the workflow via `apt-get`. The `CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER` environment variable is set to `aarch64-linux-gnu-gcc` for that build only.
-
-Only the `astrid` binary package is built for release: `cargo build --release --target ${{ matrix.target }} -p astrid`. The four companion binaries (`astrid`, `astrid-daemon`, `astrid-build`, `astrid-emit`) are copied from the target output directory, bundled into a `tar.gz` archive named `astrid-{VERSION}-{TARGET}.tar.gz`, and uploaded as build artifacts.
-
-### Content-Addressed Binaries
-
-At install time the kernel stores every capsule's WASM binary under a content-addressed path (`~/.astrid/bin/<blake3-hex>.wasm`) rather than by name. The install machinery in `crates/astrid-capsule-install/src/wasm.rs` hashes from the **source** file using BLAKE3, writes the result atomically via a UUID-suffixed temp file and `rename`, and never writes a `.wasm` into the per-capsule directory:
-
-```rust
-// crates/astrid-capsule-install/src/wasm.rs
-let hash = blake3::hash(&bytes).to_hex().to_string();
-let store_path = bin_dir.join(format!("{hash}.wasm"));
-if !store_path.exists() {
-    let tmp = bin_dir.join(format!("{hash}.tmp.{}", uuid::Uuid::new_v4().simple()));
-    std::fs::write(&tmp, &bytes)?;
-    std::fs::rename(&tmp, &store_path)?;
-}
-```
-
-The UUID-suffix is required because the gateway processes admin requests concurrently (since the bus-direct refactor), and sibling tokio tasks in the same daemon process share a PID. A UUID is the only safe disambiguator.
-
-The runtime resolves a capsule's WASM via `resolve_content_addressed_wasm` in `crates/astrid-capsule/src/engine/wasm/mod.rs` (line 90): it reads `meta.json` in the per-capsule directory to find `wasm_hash`, then constructs the path `$ASTRID_HOME/bin/<hash>.wasm`. WIT files follow the same scheme under `~/.astrid/wit/store/`; the top of `~/.astrid/wit/` holds the daemon's canonical named copies (notably `astrid-contracts.wit`), kept apart from the hash-named store so `astrid capsule wit gc` can sweep the store without touching them. The `AstridHome` directory layout is defined in `crates/astrid-core/src/dirs.rs`; `bin_dir()` returns `{root}/bin`, `wit_dir()` returns `{root}/wit`.
-
-### GitHub Release
-
-After all four build jobs complete, the `github-release` job:
-
-1. Downloads all `binary-*` artifacts.
-2. Extracts the changelog section for the version from `CHANGELOG.md` using `awk` and embeds it in the release body.
-3. Computes SHA-256 checksums with `sha256sum *.tar.gz > SHA256SUMS.txt`.
-4. Signs every archive and `SHA256SUMS.txt` with keyless sigstore (`cosign sign-blob --bundle`), producing a `.sigstore.json` bundle per asset. The certificate identity is `release.yml` at the version tag.
-5. Creates the GitHub release with `softprops/action-gh-release`, attaching all four archives, `SHA256SUMS.txt`, and the sigstore bundles.
-6. Dispatches a `release` event to the `homebrew-tap` repository so the Homebrew formula can be updated automatically.
-
-The release body includes install instructions for both `cargo install astrid` (requires Rust 1.95 or later) and the pre-built binary path.
-
-### crates.io Publishing
-
-The `astrid` package (`crates/astrid-cli`) carries all four binaries as bin targets, so `cargo install astrid` yields the same toolchain as a release tarball. Cargo requires a published crate's entire dependency tree on the registry, and the closure of `astrid` is 24 of the 28 workspace crates. Publishing "just the CLI" is therefore not possible; a release publishes the whole closure:
+Typical Rust checks are:
 
 ```bash
-# After the tag, from the workspace root:
-cargo publish --workspace
-```
-
-Modern cargo resolves the inter-crate publish order automatically and uploads bottom-up. The command is resumable: if it dies partway (network, registry rate limit), re-running skips already-published crates and continues.
-
-Four crates are excluded with `publish = false` and must stay that way: `astrid-hooks`, `astrid-prelude`, `astrid-integration-tests`, and `astrid-test`. They are not in the CLI's closure and are not a public surface.
-
-The internal crates that do reach crates.io exist only to satisfy cargo's published-closure rule. They are not a supported library API: no stability guarantees, and their versions move in lockstep with the `astrid` CLI release.
-
----
-
-## CI Pipeline
-
-The standard CI pipeline (`.github/workflows/ci.yml`) runs six jobs on every push to `main` or a `stream-*` branch, and on every PR targeting `main`. All jobs pin to Rust 1.95.
-
-| Job | Command | Notes |
-|-----|---------|-------|
-| `check` | `cargo check --workspace --all-features` | Ubuntu only |
-| `fmt` | `cargo fmt --all -- --check` | Fails on any formatting divergence |
-| `clippy` | `cargo clippy --workspace --all-features -- -D warnings` | All warnings are errors in CI |
-| `test` | `cargo test --workspace --exclude astrid-openclaw` | Ubuntu and macOS; `astrid-openclaw` excluded (parked) |
-| `msrv` | `cargo check --workspace` at 1.95 | Verifies the declared `rust-version` is accurate |
-| `audit` | `rustsec/audit-check` | Scans `Cargo.lock` for known CVEs |
-
-All jobs check out submodules recursively (`submodules: recursive`) because `astrid-capsule`'s `build.rs` stages WIT files from the `wit/` submodule before `bindgen` runs.
-
-### Pre-Submission Checklist
-
-Before pushing a branch:
-
-```bash
-cargo fmt --all
+cargo fmt --all -- --check
 cargo clippy --workspace --all-features -- -D warnings
-cargo test --workspace --exclude astrid-openclaw
+cargo test --workspace -- --quiet
 ```
 
-The PR template (`pull_request_template.md`) requires all three to pass. CI enforces the same commands and rejects PRs with unchecked boxes or empty template sections.
-
----
+Run focused regression and packaging/contract tests for the changed path too.
+Report exact commands, outcomes, and any unexecuted platform check. A parsed
+workflow or a passing textual contract test does not establish that an embedded
+shell or Python program executes; exercise the program where practical.
 
 ## Lint and Safety Standards
 
@@ -155,7 +120,7 @@ Every crate in the workspace inherits these rules via `[lints] workspace = true`
 
 - **`unsafe_code = "deny"`**: No `unsafe` blocks anywhere in the workspace unless explicitly overridden with a documented justification. See the Unsafe Code section below.
 - **`clippy::all` and `clippy::pedantic` at `warn`**: Every pedantic lint fires as a warning. CI promotes all warnings to errors via `-D warnings`, so in practice `pedantic` is `deny` in CI.
-- **`arithmetic_side_effects = "deny"`**: Integer overflow, underflow, and wrapping arithmetic are compile-time errors. Use checked arithmetic (`checked_add`, `saturating_mul`, etc.) or explicit casting when truncation is intentional.
+- **`arithmetic_side_effects = "deny"`**: Clippy rejects the arithmetic patterns covered by this lint; this is not a proof that all arithmetic is overflow-free. Use checked arithmetic (`checked_add`, `saturating_mul`, etc.) or explicit casting when truncation is intentional.
 
 ### Clippy Configuration
 
@@ -197,12 +162,12 @@ CI runs `cargo fmt --all -- --check` and fails on any deviation. Format before c
 
 ### Unsafe Code
 
-The workspace-level `deny` means `unsafe` is forbidden by default. The only legitimate exceptions in the codebase:
+The workspace-level `deny` means `unsafe` is forbidden by default. Examples of exceptions requiring a documented safety argument include:
 
 - **Integration tests calling `std::env::set_var`** (Rust 2024 edition made it `unsafe`). These carry a `// Safety:` comment explaining the single-threaded invocation pattern. See `crates/astrid-integration-tests/tests/gateway_e2e.rs:59`.
 - **Tests calling `std::env::remove_var`** for sandbox policy probing. See `crates/astrid-workspace/src/sandbox/mod.rs:755`.
 
-Neither case is production code. No production crate uses `unsafe`. To introduce `unsafe` in production code, you need a Maintainer review, a detailed soundness argument in the code comment, and a linked issue tracking the technical debt.
+These examples are not an exhaustive inventory of unsafe code. To introduce `unsafe` in production code, you need a Maintainer review, a detailed soundness argument in the code comment, and a linked issue tracking the technical debt.
 
 ### Security-Critical Crate Attributes
 
@@ -240,8 +205,7 @@ pub fn resolve() -> io::Result<Self> {
 
 ### File Size Limit
 
-Individual source files must not exceed 1000 lines. The `pr-checks.yml` workflow measures every file changed by a PR against its line count on the base branch and fails if any file crosses 1000 lines that was under the limit before the PR. The `large-file-ok` label overrides this check and is available only to Maintainers for refactors where the boundary is difficult to draw incrementally.
-
+The current file-size gate uses a 1000-line source cap and a 2000-line cap for recognized test files. Check its path classification and base-comparison rules in `pr-checks.yml`; do not assume any filename containing “test” qualifies. Split coherent modules rather than requesting an automatic waiver.
 When a file approaches the limit, split it into a submodule directory. The `crates/astrid-capsule/src/manifest/` split (from a 1000-line single file into `mod.rs`, `capabilities.rs`, and `topics.rs`) is the canonical example.
 
 ---
@@ -251,8 +215,8 @@ When a file approaches the limit, split it into a submodule directory. The `crat
 All PRs must:
 
 1. Be linked to an existing issue via `Closes #N` in the body. The `linked-issue` CI job enforces this. If no issue exists, open one first. No unsolicited PRs.
-2. Have all four template sections filled: **Linked Issue**, **Summary**, **Changes**, **Test Plan**. The `template` job in `pr-checks.yml` rejects PRs with empty sections.
-3. Update `CHANGELOG.md` under `[Unreleased]`. The changelog enforcer fails the PR otherwise.
+2. Fill the current template: **Linked Issue**, **Summary**, **Changes**, **Verification**, and **AI / Tool Assistance**, plus its checklist. The `template` job in `pr-checks.yml` rejects PRs with empty sections.
+3. Add the required changelog fragment (or use the documented docs/CI exception); release PRs roll fragments.
 4. Pass `cargo test --workspace` and `cargo clippy -- -D warnings`.
 
 New contributors additionally require a maintainer to add the `newcomer-approved` label before CI proceeds on their PR.
@@ -278,7 +242,7 @@ The Rust 2024 edition is in use (`edition = "2024"` in `[workspace.package]` and
 
 ### Reporting a Vulnerability
 
-**Do not open a public GitHub issue for security vulnerabilities.** Use [GitHub's private vulnerability reporting](https://github.com/unicity-astrid/astrid/security/advisories/new) to submit a report. This keeps the issue private until a fix is ready.
+**Do not open a public GitHub issue for security vulnerabilities.** Use [GitHub's private vulnerability reporting](https://github.com/astrid-runtime/astrid/security/advisories/new) to submit a report. This keeps the issue private until a fix is ready.
 
 Include in your report:
 
